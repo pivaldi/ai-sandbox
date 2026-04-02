@@ -32,6 +32,7 @@ function ai-sandbox {
         -v "$HOME/.gemini:/home/gemini/.gemini" \
         -v "$HOME/.claude:/home/gemini/.claude" \
         -v "$HOME/.claude.json:/home/gemini/.claude.json" \
+        -v "gemini-mise-config:/home/gemini/.config/mise" \
         -v "gemini-mise-cache:/home/gemini/.local/share/mise" \
         -e COLORTERM=truecolor \
         -e GEMINI_API_KEY="$GEMINI_API_KEY" \

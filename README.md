@@ -82,5 +82,5 @@ For some reason, you may want to force the re-build of the Docker image…
 Retrieve [the latest version XXX of Gemini](https://registry.npmjs.org/@google/gemini-cli/latest) and launch this command:
 
 ```bash
-GEMINI_VERSION="XXX" docker build --build-arg GEMINI_VERSION="$GEMINI_VERSION" -t "ai-sandbox:$GEMINI_VERSION" ~/.ai-sandbox
+export GEMINI_VERSION="XXX" && docker build --build-arg GEMINI_VERSION="$GEMINI_VERSION" -t "ai-sandbox:$GEMINI_VERSION" ~/.ai-sandbox
 ```
