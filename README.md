@@ -40,14 +40,26 @@ cd ai-sandbox && chmod +x docker-entrypoint.sh
 ln -s "$(pwd)" ~/.ai-sandbox
 ```
 
-**4. Add the wrapper function to your shell profile** (`~/.bashrc` or `~/.zshrc`):
-Open the `ai-sandbox.sh` file from this repository, copy the bash function (`ai-sandbox`), and paste it into your profile.
-Don't forget to change the value of `GEMINI_API_KEY` to your own.
+**4. Source the script from your shell profile** (`~/.bashrc` or `~/.zshrc`):
+
+```bash
+echo 'source ~/.ai-sandbox/ai-sandbox.sh' >> ~/.bashrc   # bash
+# or
+echo 'source ~/.ai-sandbox/ai-sandbox.sh' >> ~/.zshrc    # zsh
+```
+
+This way any update to `ai-sandbox.sh` (pulled via `git pull`) takes effect automatically on your next shell session — no copy-pasting required.
+
+Set your API key in the same profile, **before** the source line:
+
+```bash
+export GEMINI_API_KEY="your-key-here"
+```
 
 **5. Reload your shell:**
 
 ```bash
-source ~/.bashrc
+source ~/.bashrc   # or ~/.zshrc
 ```
 
 ## Usage

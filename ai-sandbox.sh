@@ -1,6 +1,10 @@
-GEMINI_API_KEY=XXXXXXXXXXXXXXXXXXXXXXXXXXXX
 function ai-sandbox {
     local GEMINI_VERSION CLAUDE_VERSION IMAGE_NAME
+
+    if [ -z "${GEMINI_API_KEY:-}" ]; then
+        echo "Error: GEMINI_API_KEY is not set. Export it in your shell profile before sourcing this script."
+        return 1
+    fi
 
     GEMINI_VERSION=$(curl -s https://registry.npmjs.org/@google/gemini-cli/latest | jq -r '.version')
     CLAUDE_VERSION=$(curl -s https://registry.npmjs.org/@anthropic-ai/claude-code/latest | jq -r '.version')

@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
 
 RUN curl -Ls https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_VERSION}
+RUN curl -fsSL https://roborev.io/install.sh | bash
 
 COPY docker-entrypoint.sh /usr/local/bin/entrypoint.sh
 
