@@ -32,5 +32,26 @@ touch "$HOME/.claude.json"
 # Fix permissions
 chown -R "$TARGET_UID:$TARGET_GID" "$HOME"
 
-# 4. Execute the command
+# 4. Bootstrap everything-claude-code
+ECC_REPO="$HOME/.claude/everything-claude-code"
+
+if ! grep -q "everything-claude-code" "$HOME/.claude.json" 2>/dev/null; then
+    echo "Bootstrapping everything-claude-code for the first time..."
+    gosu "$USER" claude plugin marketplace add affaan-m/everything-claude-code || true
+    gosu "$USER" claude plugin install everything-claude-code@everything-claude-code || true
+
+    # Safe cloning: Only clone if the directory doesn't already exist
+    if [ ! -d "$ECC_REPO" ]; then
+        gosu "$USER" git clone https://github.com/affaan-m/everything-claude-code.git "$ECC_REPO"
+    else
+        echo "Repo directory already exists, skipping clone..."
+    fi
+
+    gosu "$USER" bash -c "cd $ECC_REPO && chmod +x install.sh && ./install.sh --target gemini --profile full" || true
+else
+    echo "everything-claude-code is already installed. Skipping bootstrap."
+fi
+# ---------------------------------------------
+
+# 5. Execute the command
 exec gosu "$USER" "$@"

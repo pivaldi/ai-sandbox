@@ -79,8 +79,13 @@ The agent will instantly download the exact versions of Go, Node, or CLI tools y
 ## Rebuild the Image
 
 For some reason, you may want to force the re-build of the Docker image…
-Retrieve [the latest version XXX of Gemini](https://registry.npmjs.org/@google/gemini-cli/latest) and launch this command:
+Simply launch this command:
 
 ```bash
-export GEMINI_VERSION="XXX" && docker build --build-arg GEMINI_VERSION="$GEMINI_VERSION" -t "ai-sandbox:$GEMINI_VERSION" ~/.ai-sandbox
+export GEMINI_VERSION="$(curl -s https://registry.npmjs.org/@google/gemini-cli/latest | jq -r '.version')" && \
+export CLAUDE_VERSION="$(curl -s https://registry.npmjs.org/@anthropic-ai/claude-code/latest | jq -r '.version')" && \
+    docker build \
+        --build-arg GEMINI_VERSION="$GEMINI_VERSION" \
+        --build-arg CLAUDE_VERSION="$CLAUDE_VERSION" \
+        -t "ai-sandbox:gemini-${GEMINI_VERSION}-claude-${CLAUDE_VERSION}" ~/.ai-sandbox
 ```

@@ -1,22 +1,30 @@
 GEMINI_API_KEY=XXXXXXXXXXXXXXXXXXXXXXXXXXXX
 function ai-sandbox {
-    local LATEST_VERSION
-    LATEST_VERSION=$(curl -s https://registry.npmjs.org/@google/gemini-cli/latest | jq -r '.version')
+    local GEMINI_VERSION CLAUDE_VERSION IMAGE_NAME
 
-    # Fallback just in case we are offline or the curl fails
-    if [ -z "$LATEST_VERSION" ] || [ "$LATEST_VERSION" == "null" ]; then
+    GEMINI_VERSION=$(curl -s https://registry.npmjs.org/@google/gemini-cli/latest | jq -r '.version')
+    CLAUDE_VERSION=$(curl -s https://registry.npmjs.org/@anthropic-ai/claude-code/latest | jq -r '.version')
+
+    if [ -z "$GEMINI_VERSION" ] || [ "$GEMINI_VERSION" == "null" ]; then
         echo "Failed to fetch latest Gemini CLI version. Falling back to 'latest'."
-        LATEST_VERSION="latest"
+        GEMINI_VERSION="latest"
     fi
 
-    local IMAGE_NAME="ai-sandbox:$LATEST_VERSION"
+    if [ -z "$CLAUDE_VERSION" ] || [ "$CLAUDE_VERSION" == "null" ]; then
+        echo "Failed to fetch latest Claude Code version. Falling back to 'latest'."
+        CLAUDE_VERSION="latest"
+    fi
 
-    # Check if we already built this version locally
+    IMAGE_NAME="ai-sandbox:gemini-${GEMINI_VERSION}-claude-${CLAUDE_VERSION}"
+
     if ! docker image inspect "$IMAGE_NAME" >/dev/null 2>&1; then
-        echo "New Gemini CLI version ($LATEST_VERSION) detected!"
+        echo "New version detected (Gemini: $GEMINI_VERSION, Claude: $CLAUDE_VERSION)!"
         echo "Building updated sandbox image…"
 
-        docker build --build-arg GEMINI_VERSION="$LATEST_VERSION" -t "$IMAGE_NAME" "$HOME/.ai-sandbox"
+        docker build \
+            --build-arg GEMINI_VERSION="$GEMINI_VERSION" \
+            --build-arg CLAUDE_VERSION="$CLAUDE_VERSION" \
+            -t "$IMAGE_NAME" "$HOME/.ai-sandbox"
     fi
 
     local tty_args=""
