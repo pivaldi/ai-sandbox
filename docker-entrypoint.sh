@@ -53,5 +53,22 @@ else
 fi
 # ---------------------------------------------
 
-# 5. Execute the command
-exec gosu "$USER" "$@"
+# 5. Auto-pin the latest fully-installed version of every mise tool as the global default.
+#    Scans all tools generically — no need to update this file when a new tool is installed.
+MISE_INSTALLS="$HOME/.local/share/mise/installs"
+if [ -d "$MISE_INSTALLS" ]; then
+    for TOOL_DIR in "$MISE_INSTALLS"/*/; do
+        TOOL=$(basename "$TOOL_DIR")
+        for VER in $(ls "$TOOL_DIR" 2>/dev/null | grep -E '^[0-9]' | sort -rV); do
+            BIN_DIR="$TOOL_DIR$VER/bin"
+            if [ -d "$BIN_DIR" ] && [ -n "$(ls -A "$BIN_DIR" 2>/dev/null)" ]; then
+                gosu "$USER" /usr/local/bin/mise use -g "${TOOL}@${VER}" >/dev/null 2>&1 || true
+                break
+            fi
+        done
+    done
+fi
+
+# 6. Execute via `mise exec` so all globally configured tools are in PATH.
+#    Works for any tool without mise activate or shell sourcing.
+exec gosu "$USER" /usr/local/bin/mise exec -- "$@"
