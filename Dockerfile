@@ -8,7 +8,7 @@ USER root
 
 RUN apt-get update && apt-get install -y \
     curl tree make git gosu build-essential \
-    unzip jq ripgrep libsecret-1-0 tmux \
+    unzip jq ripgrep libsecret-1-0 tmux openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -Ls https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh

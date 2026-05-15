@@ -6,7 +6,7 @@ TARGET_GID=${DEFAULT_GID:-1000}
 USER=${DEFAULT_USERNAME:-gemini}
 HOME=/home/$USER
 
-# 1. Guarantee the container runs as our specific user and home directory
+# Guarantee the container runs as our specific user and home directory
 if EXISTING_USER=$(getent passwd "$TARGET_UID" | cut -d: -f1); then
     if [ "$EXISTING_USER" != "$USER" ]; then
         # Rename the existing user (e.g., 'node') to 'gemini'
@@ -20,10 +20,10 @@ else
     useradd -m -u "$TARGET_UID" -g "$TARGET_GID" -d "$HOME" -s /bin/bash "$USER"
 fi
 
-# 2. Inject Mise activation
+# Inject Mise activation
 echo 'eval "$(/usr/local/bin/mise activate bash)"' >>"$HOME/.bashrc"
 
-# 3. Ensure config directories exist so mounts don't fail
+# Ensure config directories exist so mounts don't fail
 mkdir -p "$HOME/.local/share/mise"
 mkdir -p "$HOME/.gemini"
 mkdir -p "$HOME/.claude"
@@ -32,7 +32,7 @@ touch "$HOME/.claude.json"
 # Fix permissions
 chown -R "$TARGET_UID:$TARGET_GID" "$HOME"
 
-# 4. Bootstrap everything-claude-code
+# Bootstrap everything-claude-code
 ECC_REPO="$HOME/.claude/everything-claude-code"
 
 if ! grep -q "everything-claude-code" "$HOME/.claude.json" 2>/dev/null; then
@@ -53,8 +53,8 @@ else
 fi
 # ---------------------------------------------
 
-# 5. Auto-pin the latest fully-installed version of every mise tool as the global default.
-#    Scans all tools generically — no need to update this file when a new tool is installed.
+# Auto-pin the latest fully-installed version of every mise tool as the global default.
+# Scans all tools generically — no need to update this file when a new tool is installed.
 MISE_INSTALLS="$HOME/.local/share/mise/installs"
 if [ -d "$MISE_INSTALLS" ]; then
     for TOOL_DIR in "$MISE_INSTALLS"/*/; do
@@ -69,6 +69,13 @@ if [ -d "$MISE_INSTALLS" ]; then
     done
 fi
 
-# 6. Execute via `mise exec` so all globally configured tools are in PATH.
-#    Works for any tool without mise activate or shell sourcing.
+# GitNexus MCP Registration
+if ! grep -q "gitnexus" "$HOME/.claude.json" 2>/dev/null; then
+    echo "Adding GitNexus MCP server to Claude..."
+    # We use npx so we don't have to pre-install it in the Dockerfile
+    gosu "$USER" claude mcp add gitnexus -- npx -y gitnexus@latest mcp || true
+fi
+
+# Execute via `mise exec` so all globally configured tools are in PATH.
+# Works for any tool without mise activate or shell sourcing.
 exec gosu "$USER" /usr/local/bin/mise exec -- "$@"

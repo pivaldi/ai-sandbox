@@ -28,7 +28,8 @@ function ai-sandbox {
         docker build \
             --build-arg GEMINI_VERSION="$GEMINI_VERSION" \
             --build-arg CLAUDE_VERSION="$CLAUDE_VERSION" \
-            -t "$IMAGE_NAME" "$HOME/.ai-sandbox"
+            -t "$IMAGE_NAME" "$HOME/.ai-sandbox" \
+            -t "ai-sandbox:latest"
     fi
 
     local tty_args=""

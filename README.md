@@ -99,5 +99,6 @@ export CLAUDE_VERSION="$(curl -s https://registry.npmjs.org/@anthropic-ai/claude
     docker build \
         --build-arg GEMINI_VERSION="$GEMINI_VERSION" \
         --build-arg CLAUDE_VERSION="$CLAUDE_VERSION" \
-        -t "ai-sandbox:gemini-${GEMINI_VERSION}-claude-${CLAUDE_VERSION}" ~/.ai-sandbox
+        -t "ai-sandbox:gemini-${GEMINI_VERSION}-claude-${CLAUDE_VERSION}" \
+        -t "ai-sandbox:latest" ~/.ai-sandbox
 ```
