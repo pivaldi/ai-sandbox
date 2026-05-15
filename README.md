@@ -21,6 +21,13 @@ This project wraps the official Gemini sandbox image and enhances it to solve co
 └── ai-sandbox.sh        # The bash wrapper script to auto-build and launch the sandbox
 ```
 
+## Avaibale Tools
+
+- Claude Code
+- Gemini
+- [roborev](roborev): Continuous code review for AI coding agents.
+- [Gitnexus](https://github.com/abhigyanpatwari/GitNexus): Indexes any codebase into a knowledge graph then exposes it through smart tools so AI agents never miss code.
+
 ## Installation
 
 **1. Clone this repository** anywhere on your machine:

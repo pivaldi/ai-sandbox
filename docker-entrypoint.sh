@@ -20,8 +20,8 @@ else
     useradd -m -u "$TARGET_UID" -g "$TARGET_GID" -d "$HOME" -s /bin/bash "$USER"
 fi
 
-# Inject Mise activation
-echo 'eval "$(/usr/local/bin/mise activate bash)"' >>"$HOME/.bashrc"
+# Inject Mise activation (>> is naturally silent)
+echo 'eval "$(/usr/local/bin/mise activate bash)"' >> "$HOME/.bashrc"
 
 # Ensure config directories exist so mounts don't fail
 mkdir -p "$HOME/.local/share/mise"
@@ -36,25 +36,26 @@ chown -R "$TARGET_UID:$TARGET_GID" "$HOME"
 ECC_REPO="$HOME/.claude/everything-claude-code"
 
 if ! grep -q "everything-claude-code" "$HOME/.claude.json" 2>/dev/null; then
-    echo "Bootstrapping everything-claude-code for the first time..."
-    gosu "$USER" claude plugin marketplace add affaan-m/everything-claude-code || true
-    gosu "$USER" claude plugin install everything-claude-code@everything-claude-code || true
+    echo "Bootstrapping everything-claude-code for the first time..." >&2
+
+    # Send stdout to /dev/null before || true
+    gosu "$USER" claude plugin marketplace add affaan-m/everything-claude-code > /dev/null || true
+    gosu "$USER" claude plugin install everything-claude-code@everything-claude-code > /dev/null || true
 
     # Safe cloning: Only clone if the directory doesn't already exist
     if [ ! -d "$ECC_REPO" ]; then
-        gosu "$USER" git clone https://github.com/affaan-m/everything-claude-code.git "$ECC_REPO"
+        gosu "$USER" git clone https://github.com/affaan-m/everything-claude-code.git "$ECC_REPO" > /dev/null
     else
-        echo "Repo directory already exists, skipping clone..."
+        echo "Repo directory already exists, skipping clone..." >&2
     fi
 
-    gosu "$USER" bash -c "cd $ECC_REPO && chmod +x install.sh && ./install.sh --target gemini --profile full" || true
+    gosu "$USER" bash -c "cd $ECC_REPO && chmod +x install.sh && ./install.sh --target gemini --profile full > /dev/null" || true
 else
-    echo "everything-claude-code is already installed. Skipping bootstrap."
+    echo "everything-claude-code is already installed. Skipping bootstrap." >&2
 fi
 # ---------------------------------------------
 
 # Auto-pin the latest fully-installed version of every mise tool as the global default.
-# Scans all tools generically — no need to update this file when a new tool is installed.
 MISE_INSTALLS="$HOME/.local/share/mise/installs"
 if [ -d "$MISE_INSTALLS" ]; then
     for TOOL_DIR in "$MISE_INSTALLS"/*/; do
@@ -69,13 +70,14 @@ if [ -d "$MISE_INSTALLS" ]; then
     done
 fi
 
-# GitNexus MCP Registration
-if ! grep -q "gitnexus" "$HOME/.claude.json" 2>/dev/null; then
-    echo "Adding GitNexus MCP server to Claude..."
-    # We use npx so we don't have to pre-install it in the Dockerfile
-    gosu "$USER" claude mcp add gitnexus -- npx -y gitnexus@latest mcp || true
+# Install GitNexus globally so it doesn't download every time
+if ! gosu "$USER" /usr/local/bin/mise exec -- command -v gitnexus >/dev/null 2>&1; then
+    echo "Installing GitNexus globally..." >&2
+    gosu "$USER" /usr/local/bin/mise exec -- npm install -g gitnexus >/dev/null 2>&1 || true
+
+    # Tell mise to rebuild its shims so the 'gitnexus' command becomes available
+    gosu "$USER" /usr/local/bin/mise reshim >/dev/null 2>&1 || true
 fi
 
 # Execute via `mise exec` so all globally configured tools are in PATH.
-# Works for any tool without mise activate or shell sourcing.
 exec gosu "$USER" /usr/local/bin/mise exec -- "$@"
