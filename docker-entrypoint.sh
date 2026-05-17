@@ -20,8 +20,17 @@ else
     useradd -m -u "$TARGET_UID" -g "$TARGET_GID" -d "$HOME" -s /bin/bash "$USER"
 fi
 
+# Ensure the gemini user can access the mounted docker socket for MCP commands
+if [ -S /var/run/docker.sock ]; then
+    DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
+    # Create a group for the host's docker GID if it doesn't exist in the container
+    getent group "$DOCKER_GID" >/dev/null 2>&1 || groupadd -g "$DOCKER_GID" docker_host
+    # Add gemini to that group
+    usermod -aG "$DOCKER_GID" "$USER"
+fi
+
 # Inject Mise activation (>> is naturally silent)
-echo 'eval "$(/usr/local/bin/mise activate bash)"' >> "$HOME/.bashrc"
+echo 'eval "$(/usr/local/bin/mise activate bash)"' >>"$HOME/.bashrc"
 
 # Ensure config directories exist so mounts don't fail
 mkdir -p "$HOME/.local/share/mise"
@@ -36,12 +45,12 @@ chown -R "$TARGET_UID:$TARGET_GID" "$HOME"
 ECC_REPO="$HOME/.claude/everything-claude-code"
 
 if ! grep -q "everything-claude-code" "$HOME/.claude.json" 2>/dev/null; then
-    gosu "$USER" claude plugin marketplace add affaan-m/everything-claude-code > /dev/null || true
-    gosu "$USER" claude plugin install everything-claude-code@everything-claude-code > /dev/null || true
+    gosu "$USER" claude plugin marketplace add affaan-m/everything-claude-code >/dev/null || true
+    gosu "$USER" claude plugin install everything-claude-code@everything-claude-code >/dev/null || true
 
     # Safe cloning: Only clone if the directory doesn't already exist
     if [ ! -d "$ECC_REPO" ]; then
-        gosu "$USER" git clone https://github.com/affaan-m/everything-claude-code.git "$ECC_REPO" > /dev/null
+        gosu "$USER" git clone https://github.com/affaan-m/everything-claude-code.git "$ECC_REPO" >/dev/null
     fi
 
     gosu "$USER" bash -c "cd $ECC_REPO && chmod +x install.sh && ./install.sh --target gemini --profile full > /dev/null" || true
@@ -49,7 +58,13 @@ fi
 
 # GitNexus MCP Registration
 if ! grep -q "gitnexus" "$HOME/.claude.json" 2>/dev/null; then
-    gosu "$USER" claude mcp add gitnexus -- gitnexus mcp > /dev/null || true
+    gosu "$USER" claude mcp add gitnexus -- gitnexus mcp >/dev/null || true
+fi
+
+# AIO Sandbox MCP Registration (Bridging the two containers)
+if ! grep -q "aio-sandbox" "$HOME/.claude.json" 2>/dev/null; then
+    gosu "$USER" claude mcp add aio-sandbox-shell -- docker exec -i aio-sandbox npx -y @agent-infra/mcp-server-shell >/dev/null || true
+    gosu "$USER" claude mcp add aio-sandbox-browser -- docker exec -i aio-sandbox npx -y @agent-infra/mcp-server-browser >/dev/null || true
 fi
 
 # Auto-pin the latest fully-installed version of every mise tool as the global default.
