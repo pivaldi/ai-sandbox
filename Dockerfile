@@ -12,6 +12,10 @@ RUN apt-get update && apt-get install -y \
     docker.io \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Node.js 22.x (which includes npm) via NodeSource
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs
+
 RUN curl -Ls https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_VERSION} gitnexus@latest
 RUN curl -fsSL https://roborev.io/install.sh | bash
