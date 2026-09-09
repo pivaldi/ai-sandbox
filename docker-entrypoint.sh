@@ -4,21 +4,38 @@ set -eu
 TARGET_UID=${DEFAULT_UID:-1000}
 TARGET_GID=${DEFAULT_GID:-1000}
 USER=${DEFAULT_USERNAME:-gemini}
-HOME=/home/$USER
+# The launcher passes the host's $HOME so the container agrees with ai-bwrap
+# on absolute paths written into the shared ~/.claude (plugin installPath,
+# marketplace installLocation, hook commands).
+HOME=${DEFAULT_HOME:-/home/$USER}
 AIO_PORT=${AIO_PORT:-8181}
 
 # Guarantee the container runs as our specific user and home directory
+mkdir -p "$HOME"
+
 if EXISTING_USER=$(getent passwd "$TARGET_UID" | cut -d: -f1); then
     if [ "$EXISTING_USER" != "$USER" ]; then
-        # Rename the existing user (e.g., 'node') to 'gemini'
+        # Rename the existing user (e.g., 'node') to the host's username
         usermod -l "$USER" "$EXISTING_USER" >/dev/null 2>&1 || true
-        # Change their home directory to /home/gemini and move existing files
-        usermod -d "$HOME" -m "$USER" >/dev/null 2>&1 || true
     fi
+    # Point the account at the shared home. No -m: Docker pre-creates $HOME
+    # for the bind mounts, and usermod refuses to move onto a directory that
+    # already exists. Nothing needs moving anyway -- the dotfiles this image
+    # cares about are either bind-mounted or written below.
+    usermod -d "$HOME" "$USER" >/dev/null 2>&1 || true
 else
     # Create the new group and user from scratch
     getent group "$TARGET_GID" >/dev/null 2>&1 || groupadd -g "$TARGET_GID" "$USER"
-    useradd -m -u "$TARGET_UID" -g "$TARGET_GID" -d "$HOME" -s /bin/bash "$USER"
+    useradd -u "$TARGET_UID" -g "$TARGET_GID" -d "$HOME" -s /bin/bash "$USER"
+fi
+
+# Fail loudly rather than silently landing on the wrong home: gosu reads the
+# home out of /etc/passwd, so a missed usermod would send the CLIs to an
+# unmounted directory and quietly desynchronise the shared plugin config.
+ACTUAL_HOME=$(getent passwd "$USER" | cut -d: -f6)
+if [ "$ACTUAL_HOME" != "$HOME" ]; then
+    echo "entrypoint: could not set home for '$USER': passwd says '$ACTUAL_HOME', expected '$HOME'" >&2
+    exit 1
 fi
 
 # Ensure the gemini user can access the mounted docker socket for MCP commands
@@ -42,6 +59,20 @@ touch "$HOME/.claude.json"
 
 # Fix permissions
 chown -R "$TARGET_UID:$TARGET_GID" "$HOME"
+
+# Shim roborev onto the host-shaped path the shared config expects.
+# ~/.claude/settings.json points its Bash hooks at an absolute host path
+# ($HOME/bin/go/roborev), so without this every tool call reports a
+# Pre/PostToolUse hook failure. $HOME/bin is container-local -- it is not one
+# of the bind mounts -- so this cannot touch the host. Created after the
+# chown above, hence the explicit ownership fixes.
+ROBOREV_BIN=$(command -v roborev 2>/dev/null || true)
+if [ -n "$ROBOREV_BIN" ]; then
+    mkdir -p "$HOME/bin/go"
+    ln -sf "$ROBOREV_BIN" "$HOME/bin/go/roborev"
+    chown "$TARGET_UID:$TARGET_GID" "$HOME/bin" "$HOME/bin/go"
+    chown -h "$TARGET_UID:$TARGET_GID" "$HOME/bin/go/roborev"
+fi
 
 # Bootstrap everything-claude-code
 ECC_REPO="$HOME/.claude/everything-claude-code"
@@ -90,8 +121,22 @@ if [ -d "$MISE_INSTALLS" ]; then
     done
 fi
 
-# Silently trust the mounted workspace so mise doesn't complain and leak text
-gosu "$USER" /usr/local/bin/mise trust /workspace >/dev/null 2>&1 || true
+# Silently trust the mounted project so mise doesn't complain and leak text.
+# The launcher mounts it at its real host path, so PROJECT_DIR carries that
+# path in; /workspace remains the fallback for a bare `docker run`.
+gosu "$USER" /usr/local/bin/mise trust "${PROJECT_DIR:-/workspace}" >/dev/null 2>&1 || true
+
+# Register this project's existing index with the container's own registry.
+# ~/.gitnexus is deliberately not shared with the host (see ai-sandbox.sh), so
+# the container has to register for itself. This is a pointer write, not a
+# re-analysis: the index lives in the repo's .gitnexus/, mounted with it.
+GITNEXUS_BIN=$(command -v gitnexus 2>/dev/null || true)
+if [ -z "$GITNEXUS_BIN" ] && [ -x /usr/local/share/npm-global/bin/gitnexus ]; then
+    GITNEXUS_BIN=/usr/local/share/npm-global/bin/gitnexus
+fi
+if [ -n "$GITNEXUS_BIN" ] && [ -d "${PROJECT_DIR:-/workspace}/.gitnexus" ]; then
+    gosu "$USER" "$GITNEXUS_BIN" index "${PROJECT_DIR:-/workspace}" >/dev/null 2>&1 || true
+fi
 
 # Execute via `mise exec` so all globally configured tools are in PATH.
 exec gosu "$USER" /usr/local/bin/mise exec -- "$@"

@@ -20,6 +20,7 @@ Both modes solve the same friction points of local AI-agent development — file
 | **Toolchains** | `mise` (Go/Node/Python…) baked in and cached in Docker volumes | Reuses your host `mise`/`cargo`/`go`/`nix` (mostly read-only) |
 | **Prerequisites** | Docker, `jq`, `curl` | `bwrap` (bubblewrap) and Node/`npx` on the host |
 | **Extras** | GitNexus, roborev, `everything-claude-code` preinstalled | `roborev` via your host `mise` |
+| **Paths** | Your real `$HOME` and project path, reproduced inside the container | Your real `$HOME` and project path (bound in place) |
 | **Best for** | Reproducible env, less-trusted work | Fast iteration on your own machine |
 
 Both give the agent access to **only the current directory** (`$(pwd)`) plus the credentials and caches it needs — everything else on your host is invisible.
@@ -33,6 +34,7 @@ Both give the agent access to **only the current directory** (`$(pwd)`) plus the
 * **Smart billing router:** swap between your Claude Pro subscription and Anthropic API key per-invocation, no config edits. `pro` deliberately strips `ANTHROPIC_API_KEY` so a subscription session can't silently fall back to metered billing.
 * **Dynamic UID/GID mapping (Docker):** files the agent creates are owned by your host user, so you can edit them in Emacs or VSCode without `sudo`. (Bubblewrap already runs as you.)
 * **Persistent toolchain caching:** Docker mode caches [Mise](https://mise.run/) SDKs in a volume; bubblewrap mode reuses the toolchains already installed on your host.
+* **Interchangeable config:** both modes reproduce your host's `$HOME` and project paths, so the shared `~/.claude` (logins, plugins, hooks, GitNexus index) works identically whichever sandbox you launch.
 * **Auto-updating (Docker):** the wrapper pings NPM for the latest Gemini/Claude releases and rebuilds the local image *only* when the version actually changes.
 
 ---
@@ -129,10 +131,15 @@ On first run (or after a CLI version bump) the script builds a versioned image s
 ## What happens under the hood?
 
 **The auto-updater (Docker).**
-The script queries NPM for the newest `@google/gemini-cli` and `@anthropic-ai/claude-code`, derives an image tag like `ai-sandbox:gemini-<v>-claude-<v>`, and rebuilds from the local `Dockerfile` in `~/.ai-sandbox` **only if that tag doesn't already exist**. Inside the container the entrypoint maps your host UID/GID, activates `mise`, pins the latest installed version of every tool as the global default, and trusts the mounted `/workspace`.
+The script queries NPM for the newest `@google/gemini-cli` and `@anthropic-ai/claude-code`, derives an image tag like `ai-sandbox:gemini-<v>-claude-<v>`, and rebuilds from the local `Dockerfile` in `~/.ai-sandbox` **only if that tag doesn't already exist**. Inside the container the entrypoint maps your host UID/GID, activates `mise`, pins the latest installed version of every tool as the global default, and trusts the mounted project directory.
+
+**One set of paths, both modes.**
+Docker mode reproduces your host's paths rather than inventing container-only ones: your project is mounted at its real path (not `/workspace`) and `$HOME` is your actual home (not `/home/gemini`), with the container user renamed to your username and mapped to your UID/GID.
+
+This matters because `~/.claude`, `~/.claude.json` and `~/.gitnexus` are shared between the two modes, and the tools that write there record **absolute** paths — plugin `installPath`, marketplace `installLocation`, hook commands, Claude's project-scoped settings, and GitNexus's repo registry. If the two modes disagreed about where your home or your project lives, whichever ran last would rewrite those paths and break the other. Keeping the paths identical means one login, one plugin set, and one GitNexus index shared by both modes. The one deliberate exception is GitNexus's registry: `~/.gitnexus` is **not** shared, because `registry.json` is small mutable state with no locking, and a container MCP server and a host one sharing it silently overwrite each other's registrations. Docker mode gets its own `~/.gitnexus-docker` instead, and the entrypoint registers the project on start. Only the pointer file is duplicated — the index itself lives in the repo's own `.gitnexus/` and is shared through the project mount.
 
 **The bubblewrap jail.**
-`ai-bwrap` builds a single `bwrap` invocation that does `--unshare-all` and then re-adds only the network (`--share-net`). It read-only-binds the system directories the CLIs actually need (`/usr`, `/lib`, `/etc/ssl/certs`, `/etc/resolv.conf`, …) and read-write-binds **only** the current project plus a short whitelist (`~/.claude`, `~/.claude.json`, `~/.gemini`, roborev config, the Go build cache). It does **not** bind `/etc` wholesale or your whole `$HOME` — anything not on the list simply doesn't exist inside the jail.
+`ai-bwrap` builds a single `bwrap` invocation that does `--unshare-all` and then re-adds only the network (`--share-net`). It read-only-binds the system directories the CLIs actually need (`/usr`, `/lib`, `/etc/ssl/certs`, `/etc/resolv.conf`, …) and read-write-binds **only** the current project plus a short whitelist (`~/.claude`, `~/.claude.json`, `~/.gemini`, roborev config, the Go build cache, the LadybugDB extension cache). It does **not** bind `/etc` wholesale or your whole `$HOME` — anything not on the list simply doesn't exist inside the jail.
 
 ---
 
