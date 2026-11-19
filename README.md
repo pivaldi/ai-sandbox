@@ -125,6 +125,9 @@ On first run (or after a CLI version bump) the script builds a versioned image s
 | `ai-bwrap api` | Starts Claude Code on your **personal API key** (from `./.env` or your environment). |
 | `ai-bwrap gemini` | Starts the Google Gemini CLI (requires `GEMINI_API_KEY`). |
 | `ai-bwrap roborev [args…]` | Runs roborev inside the jail via `mise exec`, forwarding any extra arguments. |
+| `ai-bwrap <command> [args…]` | Runs any other command inside the jail, e.g. `ai-bwrap bash` or `ai-bwrap ocr review`. |
+
+The command must already be installed on the host in a path the jail can see (your `mise` tools, `~/.local/bin`, …): the toolchain binds are read-only, so `npm install -g` and friends have to run outside the jail. A tool that keeps state in its own home directory needs a `--bind-try` line in the whitelist, as [open-code-review](https://github.com/alibaba/open-code-review) has for `~/.opencodereview`; otherwise what it writes there is lost when the jail exits.
 
 ---
 
